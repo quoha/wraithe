@@ -1,0 +1,67 @@
+#!/bin/bash
+##************************************************************************
+## wraithe/tools/test
+##
+## Copyright (c) 2012 Michael D Henderson, all rights reserved
+##
+## This file is part of wraithe
+##************************************************************************
+
+if [ $# -lt 2 ]
+then
+  echo
+  echo "usage: testsh _expect_ _program_ _optional_parameter_list_"
+  echo
+  exit 2
+else
+  myExpect="${1}" ; shift
+  case "${myExpect}" in
+    --fail) : ;;
+    --pass) : ;;
+    --warn) : ;;
+         *) echo "error: test expects 'fail|pass|warn'"
+            exit 2;;
+  esac
+  myProgram="${1}" ; shift
+fi
+
+if [ ! -f "${myProgram}" ]
+then
+  echo
+  echo "error: unable to locate program"
+  echo "       programName      == '${myProgram}'"
+  echo
+  exit 2
+elif [ ! -x "${myProgram}" ]
+then
+  echo
+  echo "error: program is not executable (check permissions)"
+  echo "       programName      == '${myProgram}'"
+  echo
+  exit 2
+fi
+
+"${myProgram}" "$@"
+retVal=$?
+case "${myExpect}" in
+  --fail) case "${retVal}" in
+            0) exitStatus=2 ;;
+            1) exitStatus=2 ;;
+            *) exitStatus=0 ;;
+          esac ;;
+  --pass) case "${retVal}" in
+            0) exitStatus=0 ;;
+            1) exitStatus=2 ;;
+            *) exitStatus=2 ;;
+          esac ;;
+  --warn) case "${retVal}" in
+            0) exitStatus=2 ;;
+            1) exitStatus=0 ;;
+            *) exitStatus=2 ;;
+          esac ;;
+       *) exitStatus=2 ;;
+esac
+echo
+echo " test: '${myExpect}' -> '${retVal}' -> '${exitStatus}'"
+echo
+exit ${exitStatus}

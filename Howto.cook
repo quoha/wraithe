@@ -1,0 +1,69 @@
+/*************************************************************************
+ * wraithe/Howto.cook
+ *
+ * Copyright (c) 2012 Michael D Henderson, all rights reserved
+ *
+ * This file is part of wraithe
+ *************************************************************************/
+
+set tell-position;
+
+/*===========================================================================
+ * standard defines for the cook environment
+ */
+cktRoot     = /tmp/;
+cktProject  = wraithe;
+cktName     = wraithe - scrivener blogging;
+cktAuthor   = Michael D Henderson;
+cktVerMajor = 00;
+cktVerMinor = 000;
+cktVerPatch = 0000;
+cktInclude  = ;
+cktLibrary  = ;
+
+cktInstallRoot   = /tmp/local/[cktProject]/;
+cktInstallLib    = [cktInstallRoot]lib/[cktProject]/;
+cktInstallInc    = [cktInstallRoot]include/[cktProject]/;
+cktInstallLocal  = [cktInstallRoot]local/;
+cktInstallPkg    = [cktInstallRoot]pkg/;
+
+/*===========================================================================
+ * overrides
+ */
+ccFlags   = ;
+ccInclude = ;
+ccLdFlags = ;
+
+/*===========================================================================
+ * project variables
+ */
+
+/*===========================================================================
+ * standard defines for the cook environment
+ */
+#include "tools/cook.inc"
+
+/*===========================================================================
+ */
+all: [cktAllPackages] {
+  function print [cktAllPackages];
+  function print [cktName] - [cktDir] complete;
+}
+
+/*===========================================================================
+ * testing rules
+ */
+test: [cktAllPackages] {
+  function print info -- running all tests;
+
+  [testsh] --pass bin/html2post --output-dir\=data/public/ --input\=data/test.html;
+
+  function print info -- passed all tests;
+}
+
+/*===========================================================================
+ * publishing rules
+ */
+publish: [cktAllPackages] {
+  bin/html2post --output-dir\=../public/post/ --input\=../public/WritingAnInterpreter.html;
+}

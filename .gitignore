@@ -1,0 +1,9 @@
+*~
+*_dep
+*.o
+gplTemplate
+Howto.cook,*
+howto.cook,*
+Howto.list
+howto.list
+bin/*
