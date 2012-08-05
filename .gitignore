@@ -9,4 +9,5 @@ Howto.list
 howto.list
 WritingAnInterpreter.html
 bin/*
+data/wraithe.mdb
 lib/*

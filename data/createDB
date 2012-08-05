@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [ ! -f "data/createDB.sql" ]
+then
+  echo
+  echo "error: missing createDB.sql file"
+  echo
+  exit 2
+fi
+
+rm -f data/wraithe.mdb
+
+sqlite3 data/wraithe.mdb ".read data/createDB.sql"
+exit $?

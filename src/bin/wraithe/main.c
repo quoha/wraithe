@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
 	const char *preloadLib  = 0;
 	const char *postloadLib = 0;
 	const char *wraitheFile = 0;
+	const char *wraitheDB   = 0;
 
 	int foundErrors = 0;
 	int idx;
@@ -51,6 +52,8 @@ int main(int argc, char *argv[]) {
 			postloadLib = val;
 		} else if (OptIs(opt, "pre-write") && val && *val) {
 			preloadLib = val;
+		} else if (OptIs(opt, "wraithe-db") && val && *val) {
+			wraitheDB = val;
 		} else if (OptIs(opt, "wraithe-file") && val && *val) {
 			wraitheFile = val;
 		} else {
@@ -68,6 +71,9 @@ int main(int argc, char *argv[]) {
 	} else if (!outputPath) {
 		printf("\nerror:\tinvalid command line\n\tmissing --output-path=xxx\n\ttry the --help option if you're stuck\n\n");
 		return 2;
+	} else if (!wraitheDB) {
+		printf("\nerror:\tinvalid command line\n\tmissing --wraithe-db=xxx\n\ttry the --help option if you're stuck\n\n");
+		return 2;
 	}
 
 	printf(" info:\t%-18s == '%s'\n", "config-file", configFile);
@@ -76,6 +82,7 @@ int main(int argc, char *argv[]) {
 	printf("\t%-18s == '%s'\n", "input-file", inputFile);
 	printf("\t%-18s == '%s'\n", "output-path", outputPath);
 	printf("\t%-18s == '%s'\n", "wraithe-file", wraitheFile ? wraitheFile : "not specified");
+	printf("\t%-18s == '%s'\n", "wraithe-db", wraitheDB);
 
 	// the preload file initializes the environment
 	if (!LoadConfigFile(configFile)) {
@@ -144,6 +151,28 @@ int main(int argc, char *argv[]) {
 			WriteArticle(outputPath, prelib, html->body->text, h1, postlib);
 		}
 	}
+
+	printf(" info:\tadding articles to the wraithe database...\n");
+	sqlite3 *db = 0;
+	if (sqlite3_open_v2(wraitheDB, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) {
+		printf("\nerror:\tunable to open the wraithe database\n\t%-18s == '%s'\n\n", "wraithe-db", wraitheDB);
+		return 2;
+	}
+	if (html && html->body) {
+		for (idx = 0; html->body->h1[idx]; idx++) {
+			H1 *h1 = html->body->h1[idx];
+			if (!PostArticle(db, "post", h1)) {
+				printf("\nerror:\terror posting article\n");
+				printf("\t%-18s == '%s'\n", "type", "post");
+				printf("\t%-18s == '%s'\n", "title", h1->title);
+				sqlite3_close(db);
+				return 2;
+			}
+		}
+	}
+	printf("\tupdate completed\n");
+
+	sqlite3_close(db);
 
 	return 0;
 }

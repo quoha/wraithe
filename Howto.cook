@@ -29,7 +29,7 @@ cktRoot     = /tmp/;
 cktProject  = wraithe;
 cktName     = wraithe - scrivener blogging;
 cktAuthor   = Michael D Henderson;
-cktVerMajor = 01;
+cktVerMajor = 02;
 cktVerMinor = 000;
 cktVerPatch = 0000;
 cktInclude  = ;
@@ -52,6 +52,7 @@ ccLdFlags = ;
 /*===========================================================================
  * project variables
  */
+bin/wraithe_ldFlags = -lsqlite3;
 
 /*===========================================================================
  * standard defines for the cook environment
@@ -73,6 +74,7 @@ test: [cktAllPackages] {
 
   /*[testsh] --pass bin/html2post --input\=data/test.html --output-dir\=data/public/;*/
   /*[testsh] --pass bin/wraithe   --preload\=data/wraithe.rc --config\=data/test.lua --input\=data/public/papers.post --output\=data/public/papers.html;*/
+/*
   [testsh] --pass bin/wraithe
     --config-file\=data/wraithe.rc
     --pre-write\=lib/wraithe/preArticle.php
@@ -80,12 +82,14 @@ test: [cktAllPackages] {
     --input-file\=data/test0000.html
     --output-path\=data/output/
     --wraithe-file\=data/output/wraithe.php;
+*/
 
   [testsh] --pass bin/wraithe
     --config-file\=data/wraithe.rc
     --input-file\=data/WritingAnInterpreter.html
     --output-path\=data/output/wai/
-    --wraithe-file\=data/output/wai/wraithe.php;
+    --wraithe-file\=data/output/wai/wraithe.php
+    --wraithe-db\=data/wraithe.mdb;
 
   function print info -- passed all tests;
 }

@@ -23,6 +23,7 @@
 #define wraithe_src_bin_wraithe_local_H
 
 #include <stdio.h>
+#include <sqlite3.h>
 
 // must be defined in the order that we
 // expect to find the tokens in the input
@@ -91,6 +92,7 @@ struct Token {
 };
 
 BODY       *BODYNew(const char *tag, const char *text, const char *close);
+const char *CRC(const char *text);
 const char *FixPath(const char *path);
 const char *ForcePathSlash(const char *path);
 const char *HomeDir(void);
@@ -114,5 +116,6 @@ Token      *TokenSeparator(Token *root, const char *separator);
 char       *TranslatePHP(char *buffer);
 char       *TranslateSmartQuotes(char *buffer);
 int         WriteArticle(const char *path, const char *preLib, const char *preText, H1 *h1, const char *postLib);
+int         PostArticle(sqlite3 *db, const char *type, H1 *h1);
 
 #endif
