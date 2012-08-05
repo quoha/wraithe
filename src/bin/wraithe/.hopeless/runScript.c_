@@ -1,0 +1,20 @@
+/*************************************************************************
+ * wraithe/src/bin/wraithe/runScript.c
+ *
+ * Copyright (c) 2012 Michael D Henderson, all rights reserved
+ *
+ * This file is part of wraithe
+ *************************************************************************/
+#include "local.h"
+
+#include <stdio.h>
+
+static char chunk[2048];
+
+int RunScript(lua_State *L, char *scriptName) {
+	snprintf(chunk, 2048, "require '%s';", scriptName);
+	chunk[2047] = 0;
+
+	return RunString(L, chunk);
+}
+

@@ -1,20 +1,33 @@
-/*======================================================================*\
- * wraithe/tools/cook.inc
+/*************************************************************************
+ * tools/cook.inc
  *
- * Copyright (c) 2012 Michael D Henderson
+ * Copyright (c) 2012 Michael D Henderson, all rights reserved
  *
- * This file is part of wraithe.
+ * This file is part of wraithe (http://github.com/quoha/wraithe).
  *
-\*======================================================================*/
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *************************************************************************/
 
 set tell-position;
 
 cktProjDir  = [cktRoot][cktProject]/;
 cktVer      = [cktVerMajor].[cktVerMinor].[cktVerPatch];
 cktDir      = [cktProject]-[cktVer];
-cktCookVer  = 00.00.0000;
+cktCookVer  = 00.000.0000;
 
-function print [cktName] - [cktDir] "(built by cooktools v"[cktCookVer]")";
+function print [cktName] - [cktDir] "(built by cktCook v"[cktCookVer]")";
 
 /*===========================================================================
  * compiler setup
@@ -22,22 +35,35 @@ function print [cktName] - [cktDir] "(built by cooktools v"[cktCookVer]")";
  */
 if [not [defined all_libs ]] then all_libs       = ;
 if [not [defined extCFlags]] then extCFlags      = ;
-
+if [not [defined cc       ]] then cc             = [find_command clang];
 if [not [defined cc       ]] then cc             = [find_command gcc];
-if [not         [cc]       ] then cc             = gcc;
+if [not [defined cc       ]] then cc             = false;
 if [not [defined ccInclude]] then ccInclude      = ;
 if [not [defined ccLibs   ]] then ccLibs         = ;
 if [not [defined ccFlags  ]] then ccFlags        = ;
 
 /*===========================================================================
+ * linker setup
+ */
+if [defined cktIsMac] then {
+  cktSharedLibExt=".dylib";
+} else {
+  cktSharedLibExt=".so";
+}
+
+/*===========================================================================
  * utility paths
  */
-if [not [defined ar     ]] then ar      = [find_command ar];
-if [not         [ar]     ] then ar      = tools/ar;
-if [not [defined delete ]] then delete  = tools/delete;
-if [not [defined strip  ]] then strip   = [find_command strip];
-if [not         [strip]  ] then strip   = tools/strip;
-if [not [defined testsh ]] then testsh  = tools/testsh;
+if [not [defined ar      ]] then ar       = [find_command ar];
+if [not [defined cpshl   ]] then cpshl    = tools/cpScript;
+if [not [defined delete  ]] then delete   = tools/delete;
+if [not [defined distrib ]] then distrib  = tools/distrib;
+if [not [defined lemon   ]] then lemon    = [find_command lemon];
+if [not [defined manifest]] then manifest = tools/manifest;
+if [not [defined ragel   ]] then ragel    = [find_command ragel];
+if [not [defined strip   ]] then strip    = [find_command strip];
+if [not [defined testsh  ]] then testsh   = tools/testsh;
+if [not [defined checksh ]] then checksh  = bin/check.sh;
 
 /*===========================================================================
  * Package Identification Strings
@@ -62,20 +88,44 @@ ccFlags += [cktIdentFlags];
  * allow cook to generate the list of sources files that we have
  */
 cktAllPackages = ;
-cktAllFiles    = [collect tools/manifest all  ];
+cktTestUnits   = ;
 cktCookedInc   = ;
-cktSrcPaths    = [collect tools/manifest dir  ];
-cktSrcFiles    = [collect tools/manifest file ];
+cktSrcPaths    = [sort [collect [manifest] dir  ]];
+cktSrcFiles    = [sort [collect [manifest] file ]];
 
 /*===========================================================================
  * generate list of packages from the source. this is for both binaries and
- * libraries.
+ * libraries. we assume that cktSrcPaths is sorted.
  */
-cktBinPackages = [sort [match_mask src/bin/% [cktSrcPaths]]];
-cktLibPackages = [sort [match_mask src/lib/% [cktSrcPaths]]];
+cktBinPackages = [match_mask src/bin/%    [cktSrcPaths]]
+                 [match_mask src/bin-32/% [cktSrcPaths]];
+cktDLLPackages = [match_mask src/dll/%    [cktSrcPaths]]
+                 [match_mask src/dll-32/% [cktSrcPaths]];
+cktLibPackages = [match_mask src/lib/%    [cktSrcPaths]]
+                 [match_mask src/lib-32/% [cktSrcPaths]];
+cktTstPackages = [match_mask src/tst/%    [cktSrcPaths]]
+                 [match_mask src/tst-32/% [cktSrcPaths]];
 
 /*===========================================================================
- * build the dependencies for binary, library and shell packages
+ * build the dependencies for lua packages
+ */
+loop local luaFile = [match_mask %0%.lua [cktSrcFiles]] {
+  local tgtName = [fromto src/%1/%2 %2 [luaFile]];
+
+  ourTarget        = lib/[tgtName];
+  [ourTarget]_type = lua;
+
+  if [defined [ourTarget]_dep] then {
+    [ourTarget]_dep += [luaFile];
+  } else {
+    [ourTarget]_dep  = [luaFile];
+  }
+
+  cktAllPackages += [ourTarget];
+}
+
+/*===========================================================================
+ * build the dependencies for shell packages
  */
 loop local shlFile = [match_mask %0%.sh [cktSrcFiles]] {
   local tgtName = [fromto src/%1/%2 %2 [shlFile]];
@@ -99,86 +149,220 @@ loop local shlFile = [match_mask %0%.sh [cktSrcFiles]] {
 */
 }
 
-loop local pkgPath = [cktBinPackages] [cktLibPackages] {
-  local tgtType  = [fromto src/%1/%2 %1 [pkgPath]];
-  local tgtName  = [fromto src/%1/%2 %2 [pkgPath]];
 
-  if [match_mask src/bin/% [pkgPath]] then {
-    ourTarget = bin/[tgtName];
-    [ourTarget]_type = exe;
-  } else if [match_mask src/lib/% [pkgPath]] then {
-    ourTarget = lib/lib[tgtName].a;
-    [ourTarget]_type = lib;
-  } else if [match_mask src/shl/% [pkgPath]] then {
-    ourTarget = bin/[tgtName];
-    [ourTarget]_type = shl;
+/*===========================================================================
+ * build the dependencies for SQL scripts
+ */
+loop local sqlFile = [match_mask %0%.sql [cktSrcFiles]] {
+  local tgtName = [fromto src/%1/%2 %2 [sqlFile]];
+
+  ourTarget        = sql/[tgtName];
+  [ourTarget]_type = sql;
+
+  if [defined [ourTarget]_dep] then {
+    [ourTarget]_dep += [sqlFile];
+  } else {
+    [ourTarget]_dep  = [sqlFile];
+  }
+
+  cktAllPackages += [ourTarget];
+}
+
+/*===========================================================================
+ * build the dependencies for binary and library packages.
+ *
+ * if we find -32 at then end of the path, then assume that we will build a
+ * 32-bit package.
+ */
+loop local pkgPath = [cktBinPackages] [cktDLLPackages] [cktLibPackages] [cktTstPackages] {
+  local tgtType   = [fromto src/%1/%2 %1 [pkgPath]];
+  local tgtName   = [fromto src/%1/%2 %2 [pkgPath]];
+
+  local tName    = ;
+  local tType    = ;
+  local tCCFlags = ;
+  local tLDFlags = ;
+
+  if [matches "bin" [tgtType]] then {
+    tName = bin/[tgtName];
+    tType = exe;
+  } else if [matches "bin-32" [tgtType]] then {
+    tName    = bin/[tgtName];
+    tType    = exe32;
+    tCCFlags = -m32;
+    tLdFlags = -m32;
+  } else if [matches "lib" [tgtType]] then {
+    tName = lib/lib[tgtName].a;
+    tType = lib;
+    ourDebugTarget        = lib/lib[tgtName]_debug.a;
+    [ourDebugTarget]_type = [tName]_type;
+  } else if [matches "lib-32" [tgtType]] then {
+    tName    = lib/lib[tgtName].a;
+    tType    = lib32;
+    tCCFlags = -m32;
+    tLDFlags = -m32;
+    ourDebugTarget        = lib/lib[tgtName]_debug.a;
+    [ourDebugTarget]_type = [tName]_type;
+  } else if [matches "dll" [tgtType]] then {
+    loop local w = [split "." [tgtName]] {
+      if [not [tName]] then {
+        tName = [w];
+      } else {
+        tName = [catenate [tName] "/" [w]];
+      }
+    }
+    tName    = [prepost "lib/" [cktSharedLibExt] [tName]];
+    tType    = dll;
+    tCCFlags = -fPIC -fno-common;
+    tLDFlags = -fPIC -fno-common;
+  } else if [matches "dll-32" [tgtType]] then {
+    loop local w = [split "." [tgtName]] {
+      if [not [tName]] then {
+        tName = [w];
+      } else {
+        tName = [catenate [tName] "/" [w]];
+      }
+    }
+    tName    = [prepost "lib/" [cktSharedLibExt] [tName]];
+    tType    = dll32;
+    tCCFlags = -m32 -fPIC;
+    tLDFlags = -m32 -fPIC;
+  } else if [matches "tst" [tgtType]] then {
+    tName = tests/bin/[tgtName];
+    tType = exe;
+    cktTestUnits += [tName];
+  } else if [matches "tst-32" [tgtType]] then {
+    tName = tests/bin-32/[tgtName];
+    tType = exe32;
+    cktTestUnits += [tName];
   } else {
     echo do not know how to handle [pkgPath];
     loopstop;
   }
 
-  [ourTarget]_target = [ourTarget];
+  [tName]_type = [tType];
 
-  [ourTarget]_sh   = ;
-  [ourTarget]_fbf  = [match_mask [pkgPath]/%0%.fbf [cktSrcFiles]];
-  [ourTarget]_y    = [match_mask [pkgPath]/%0%.y   [cktSrcFiles]];
-  [ourTarget]_hdr  = [match_mask [pkgPath]/%0%.h   [cktSrcFiles]]
-                     [match_mask [pkgPath]/%0%.hpp [cktSrcFiles]];
-  [ourTarget]_src  = [stringset [match_mask [pkgPath]/%0%.c   [cktSrcFiles]]
-                                [match_mask [pkgPath]/%0%.cpp [cktSrcFiles]]
-                                [fromto %0%.fbf  %0%.c [[ourTarget]_fbf   ]]
-                                [fromto %0%.y    %0%.c [[ourTarget]_y     ]]
-                     ];
-  [ourTarget]_obj  = [fromto %0%.%1 %0%.o [[ourTarget]_src]];
-
-  if [defined [ourTarget]_dep] then {
-    [ourTarget]_dep += [[ourTarget]_obj];
+  if [defined [tName]_ccFlags] then {
+    [tName]_ccFlags += [tCCFlags];
   } else {
-    [ourTarget]_dep  = [[ourTarget]_obj];
+    [tName]_ccFlags  = ;
+  }
+  if [defined [tName]_ldFlags] then {
+    [tName]_ldFlags += [tLDFlags];
+  } else {
+    [tName]_ldFlags  = ;
+  }
+
+  if [matches "dll" [tgtType]] then {
+    [tName]_ccFlags += "-fPIC -fno-common";
+    /*[tName]_ldFlags += "-shared -Wl,-soname,core.so";*/
+  } else if [matches "dll32" [tgtType]] then {
+    [tName]_ccFlags += "-fPIC";
+  }
+
+  local ourFiles = [match_mask [pkgPath]/%0% [cktSrcFiles]];
+  if [defined [tName]_exclude] then {
+    loop local srcFilter = [[tName]_exclude] {
+      ourFiles = [filter_out %0[srcFilter] [ourFiles]];
+    }
+  }
+
+  [tName]_target = [tName];
+  [tName]_sh     = ;
+  [tName]_gg     = [match_mask [pkgPath]/%0%.gg  [ourFiles]];
+  [tName]_hdr    = [match_mask [pkgPath]/%0%.h   [ourFiles]]
+                   [match_mask [pkgPath]/%0%.hpp [ourFiles]];
+  [tName]_rl     = [match_mask [pkgPath]/%0%.rl  [ourFiles]];
+  [tName]_src    = [stringset [match_mask [pkgPath]/%0%.c   [ourFiles]]
+                              [match_mask [pkgPath]/%0%.cpp [ourFiles]]
+                              [fromto %0%.gg %0%.c [[tName]_gg]]
+                              [fromto %0%.rl %0%.c [[tName]_rl]]];
+  [tName]_obj    = [fromto %0%.%1 %0%.o [[tName]_src]];
+
+  if [not [defined [tName]_dep    ]] then [tName]_dep     = ;
+  if [not [defined [tName]_inc    ]] then [tName]_inc     = ;
+
+  [tName]_dep += [[tName]_obj];
+
+  loop local objFile = [[tName]_obj] {
+    [objFile]_inc  = [[tName]_inc];
+    [objFile]_type = [[tName]_type];
+    if [not [defined [objFile]_ccFlags]] then {
+      [objFile]_ccFlags = ;
+    }
+    [objFile]_ccFlags += [[tName]_ccFlags];
+  }
+
+  loop local srcFile = [[tName]_src] {
+    [srcFile]_dep_inc = [[tName]_inc];
+    [srcFile]_type    = [[tName]_type];
   }
 
   if [defined cktCookedInc] then {
-    cktCookedInc += [fromto %0%.%1  %0%.%1_dep  [[ourTarget]_src]
-                                                [[ourTarget]_hdr]];
+    cktCookedInc += [fromto %0%.%1  %0%.%1_dep  [[tName]_src]
+                                                [[tName]_hdr]];
   } else {
-    cktCookedInc  = [fromto %0%.%1  %0%.%1_dep  [[ourTarget]_src]
-                                                [[ourTarget]_hdr]];
+    cktCookedInc  = [fromto %0%.%1  %0%.%1_dep  [[tName]_src]
+                                                [[tName]_hdr]];
   }
 
-  if [not [defined [ourTarget]_inc    ]] then [ourTarget]_inc     = ;
-  if [not [defined [ourTarget]_ldflags]] then [ourTarget]_ldflags = ;
+  cktAllPackages += [tName];
 
-  cktAllPackages += [ourTarget];
+  if [defined ourDebugTarget] then {
+    if [not [defined [ourDebugTarget]_dep    ]] then [ourDebugTarget]_dep     = ;
+    if [not [defined [ourDebugTarget]_inc    ]] then [ourDebugTarget]_inc     = ;
+    if [not [defined [ourDebugTarget]_ldFlags]] then [ourDebugTarget]_ldFlags = ;
+    [ourDebugTarget]_target = [ourDebugTarget];
+    [ourDebugTarget]_sh     = ;
+    [ourDebugTarget]_gg     = [match_mask [pkgPath]/%0%.gg  [cktSrcFiles]];
+    [ourDebugTarget]_hdr    = [match_mask [pkgPath]/%0%.h   [cktSrcFiles]]
+                              [match_mask [pkgPath]/%0%.hpp [cktSrcFiles]];
+    [ourDebugTarget]_rl     = [match_mask [pkgPath]/%0%.rl  [cktSrcFiles]];
+    [ourDebugTarget]_src    = [stringset [match_mask [pkgPath]/%0%.c   [cktSrcFiles]]
+                                         [match_mask [pkgPath]/%0%.cpp [cktSrcFiles]]
+                                         [fromto %0%.gg %0%.c [[ourDebugTarget]_gg]]
+                                         [fromto %0%.rl %0%.c [[ourDebugTarget]_rl]]];
+    [ourDebugTarget]_obj    = [fromto %0%.%1 %0%_debug.o [[ourDebugTarget]_src]];
 
-/*
-  function print " info: pkgPath           is" [pkgPath];
-  function print " info: tgtName           is" [tgtName];
-  function print " info: tgtType           is" [tgtType];
-  function print " info: ourTarget         is" [ourTarget];
-  function print " info: ourTarget_target  is" [ourTarget]_target;
-  function print " info: ourTarget_target  is" [[ourTarget]_target];
-  function print " info: ourTarget_src     is" [[ourTarget]_src];
-  function print " info: ourTarget_dep     is" [[ourTarget]_dep];
-  function print " info: ourTarget_hdr     is" [[ourTarget]_hdr];
-  function print " info: ourTarget_sh      is" [[ourTarget]_sh ];
-  function print " info: ourTarget_y       is" [[ourTarget]_y  ];
-  function print " info: ourTarget_obj     is" [[ourTarget]_obj];
-  function print " info: ourTarget_inc     is" [[ourTarget]_inc];
-  function print " info: ourTarget_ldflags is" [[ourTarget]_ldflags];
-  function print " info: ourTarget_type    is" [[ourTarget]_type];
-*/
+    [ourDebugTarget]_dep += [[ourDebugTarget]_obj];
+
+    cktAllPackages += [ourDebugTarget];
+  }
+
+  if [matches "ignore" [[tName]_type]] then {
+    function print " info: pkgPath           is" [pkgPath];
+    function print " info: tgtName           is" [tgtName];
+    function print " info: tgtType           is" [tgtType];
+    function print " info: ourTarget         is" [tName];
+    function print " info: ourTarget_target  is" [tName]_target;
+    function print " info: ourTarget_target  is" [[tName]_target];
+    function print " info: ourTarget_src     is" [[tName]_src];
+    function print " info: ourTarget_dep     is" [[tName]_dep];
+    function print " info: ourTarget_hdr     is" [[tName]_hdr];
+    function print " info: ourTarget_sh      is" [[tName]_sh ];
+    function print " info: ourTarget_gg      is" [[tName]_gg ];
+    function print " info: ourTarget_rl      is" [[tName]_rl ];
+    function print " info: ourTarget_obj     is" [[tName]_obj];
+    function print " info: ourTarget_inc     is" [[tName]_inc];
+    function print " info: ourTarget_ccFlags is" [[tName]_ccFlags];
+    function print " info: ourTarget_ldFlags is" [[tName]_ldFlags];
+    function print " info: ourTarget_type    is" [[tName]_type];
+  }
 }
 
 /*===========================================================================
  */
 clean.bak: {
-  [delete] [match_mask %0%~ [cktAllFiles]] set silent;
+  [delete] [match_mask %0%~ [cktSrcFiles]] set silent;
 }
 clean.bin: {
-  [delete] [match_mask %0core [cktAllFiles]] [cktAllPackages] set silent;
+  [delete] [match_mask %0core [cktSrcFiles]] [cktAllPackages] set silent;
 }
 clean.dep: {
   [delete] [cktCookedInc] set silent;
+}
+clean.lua: {
+  echo delete [fromto src/%1/%2 lib/%2 [match_mask %0%.lua [cktSrcFiles]]];
 }
 clean.obj: {
   [delete] [match_mask %0%.o [cktSrcFiles]] set silent;
@@ -196,6 +380,8 @@ clobber: clean clean.bak clean.bin clean.dep clean.obj clean.scripts;
 distrib: clobber {
   [distrib] [cktProject] [cktVerMajor].[cktVerMinor].[cktVerPatch];
 }
+
+rebuild: clobber all;
 
 /*===========================================================================
  * production rules
@@ -340,27 +526,21 @@ package.src: clobber
   rm -rf [pkgRoot];
 }
 
-
 /*===========================================================================
  * from the user guide, create dependency list files for files
  */
 %0%.%1_dep: %0%.%1
   set no-cascade
 {
+  local addlFlags =;
+  if [defined [target]_inc] then addlFlags = [[target]_inc];
+
   c_incl --no-cache --no-recurs %0%.%1
-    -I[dirname %0%.%1] [ccInclude]
+    -I[dirname %0%.%1] [ccInclude] [addlFlags]
     "--prefix='cascade %0%.%1 = '"
     "--suffix=';'"
     -o [target]
       set silent;
-}
-
-/*===========================================================================
- * rule to translate an FBF specification
- */
-%0%.c %0%.h: %0%.fbf: tools/bin/fbf2c
-{
-  [fbf2c] %0%.fbf %0%.c %0%.h set silent;
 }
 
 /*===========================================================================
@@ -370,19 +550,46 @@ package.src: clobber
  * leave it on error. that will help when debugging problems with the
  * grammar.
  */
-%0%.c %0%.hpp: %0%.y: [lemon]
+%0%.c %0%.h: %0%.gg: [lemon]
 {
-  [lemon] -c %0%.y set silent;
-  [lemonx]   %0%.y set silent;
+  [lemon] -c %0%.gg;
+  /*[lemonx]   %0%.gg; */
+}
+
+vendor/bin/lemon: vendor/lemon/lemon.c
+{
+  gcc -o vendor/bin/lemon vendor/lemon/lemon.c;
+}
+
+/*===========================================================================
+ * rule to translate a ragel specification (a .rl file to .c)
+ *
+ */
+%0%.c: %0%.rl: [ragel]
+{
+  [ragel] -C -G2 -o %0%.c   %0%.rl;
+  [ragel] -p -V  -o %0%.dot %0%.rl;
 }
 
 /*===========================================================================
  * force a C source file to compile in the current directory with the right
  * include files -- assumes that dependency files have been created
  */
+%0%_debug.o: %0%.c
+{
+  local addlFlags =;
+  if [defined [target]_inc] then addlFlags += [[target]_inc];
+  if [defined [target]_ccFlags] then addlFlags += [[target]_ccFlags];
+
+  [cc] [addlFlags] -I[dirname %0%.c] [ccInclude] [ccFlags] -c %0%.c -o [target];
+}
 %0%.o: %0%.c
 {
-  [cc] -I[dirname %0%.c] [ccInclude] [ccFlags] -c %0%.c -o [target];
+  local addlFlags =;
+  if [defined [target]_inc] then addlFlags += [[target]_inc];
+  if [defined [target]_ccFlags] then addlFlags += [[target]_ccFlags];
+
+  [cc] [addlFlags] -I[dirname %0%.c] [ccInclude] [ccFlags] -c %0%.c -o [target];
 }
 
 /*===========================================================================
@@ -391,17 +598,61 @@ package.src: clobber
  */
 %0%.o: %0%.cpp
 {
-  [cc] -I[dirname %0%.cpp] [ccInclude] [ccFlags] -c %0%.cpp -o [target];
+  local addlFlags =;
+  if [defined [target]_inc] then addlFlags += [[target]_inc];
+  if [defined [target]_ccFlags] then addlFlags += [[target]_ccFlags];
+
+  [cc] [addlFlags] -I[dirname %0%.cpp] [ccInclude] [ccFlags] -c %0%.cpp -o [target];
 }
+
+/*===========================================================================
+ * run file through the pre-processor
+ */
+%0%.ppp: %0%.cpp
+{
+  local addlFlags =;
+  if [defined [target]_inc] then addlFlags += [[target]_inc];
+  if [defined [target]_ccFlags] then addlFlags += [[target]_ccFlags];
+
+  [cc] [addlFlags] -I[dirname %0%.cpp] [ccInclude] [ccFlags] -c %0%.cpp -E > [target];
+}
+
+/*===========================================================================
+ */
+lib/%1.lua: [[target]_dep]
+{
+  loop local srcFile = [sort [[target]_dep]] {
+    echo "lua: install " [srcFile] " to " [target] set silent;
+    tools/bin/cpScript [cktVer] [srcFile] [target] set silent;
+  }
+}
+
 
 /*===========================================================================
  * create a library from object files
  *   example: lib/libsbll.a: lib/sbll_obj
  */
 lib/lib%1.a: [[target]_obj]
-  set unlink
+  set mkdir unlink
 {
   [ar] cq [target] [[target]_obj];
+}
+
+lib/%0%.dylib: [[target]_obj]
+  set mkdir unlink
+{
+  /*[cc] -dynamiclib [[target]_ldFlags] -o [target] [[target]_obj];*/
+  echo [[target]_obj] set silent;
+  echo fromto %0%.o %0%.c [[target]_obj] set silent;
+  echo [fromto %0%.o %0%.c [[target]_obj]] set silent;
+  clang -dynamiclib -fvisibility\=hidden [fromto %0%.o %0%.c [[target]_obj]] -o [target];
+}
+
+lib/%0%.so: [[target]_obj]
+  set mkdir unlink
+{
+  /*[cc] [[target]_ldFlags] -shared -Wl,-soname,[target] -o [target] [[target]_obj];*/
+  [cc] [[target]_ldFlags] -shared                      -o [target] [[target]_obj];
 }
 
 /*===========================================================================
@@ -412,7 +663,7 @@ bin/scripts: [[target]_dep]
     function print "script: install" [srcFile];
     local tgtFile = [fromto %0%.sh %0% [fromto src/%1/%2 bin/%2 [srcFile]]];
     function print "script: install" [tgtFile];
-    tools/bin/cpScript [cktVer] [srcFile] [tgtFile];
+    [cpshl] [cktVer] [srcFile] [tgtFile];
   }
 }
 
@@ -423,14 +674,23 @@ bin/scripts: [[target]_dep]
 bin/%: [[target]_dep]
   set unlink
 {
-  /*echo target [target] [target]_dep [[target]_dep];*/
-
-  [cc] -o [target]
-    [[target]_obj]
-    [[target]_ldflags]
-    [all_libs]
-    ;
+  [cc] -o [target] [[target]_obj] [[target]_ldFlags] [all_libs];
 }
+tests/bin/%: [[target]_dep]
+  set unlink
+{
+  [cc] -o [target] [[target]_obj] [[target]_ldFlags] [all_libs] -L/usr/local/scripts/local/lib/ -lCuTest;
+}
+
+/*===========================================================================
+ */
+sql/%1.sql: [[target]_dep]
+{
+  loop local srcFile = [sort [[target]_dep]] {
+    tools/bin/cpScript [cktVer] [srcFile] [target] set silent;
+  }
+}
+
 
 /*===========================================================================
  * include dependency files created above

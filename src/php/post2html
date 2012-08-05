@@ -1,6 +1,6 @@
 #!/bin/bash
 ##************************************************************************
-## wraithe/tools/manifest
+## wraithe/bin/post2html
 ##
 ## Copyright (c) 2012 Michael D Henderson, all rights reserved
 ##
@@ -21,12 +21,20 @@
 ##
 ##************************************************************************
 
-while [ -n "${1}" ]
-do
-  [ "${1}" == all  -o "${1}" == --all  ] && find .   -type f
-  [ "${1}" == dir  -o "${1}" == --dir  ] && find src -type d
-  [ "${1}" == file -o "${1}" == --file ] && find src -type f
-  shift
-done | grep -v '.git' | sed -e 's/^\.$//' -e 's/^\.\///' -e '/^$/d' | sort -u
 
+for tgt in $( php -r "include 'bin/listArticles.php';" )
+do
+  echo " info: target is $tgt"
+
+  php -r "\$targetFile = '${tgt}'; include 'bin/outputArticle.php';" > "${tgt}"
+  retVal=$?
+  if [ ${retVal} != 0 ]
+  then
+    echo
+    echo "error: failed to compile templates"
+    echo
+    rm -f "${tgt}"
+    exit 2
+  fi
+done
 exit 0

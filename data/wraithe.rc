@@ -1,0 +1,5 @@
+-- wraithe.rc
+-- name<space>value
+------------- ------------------------
+WRAITHE_ENV   dev
+WRAITHE_INC   lib/

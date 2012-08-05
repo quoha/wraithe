@@ -1,9 +1,12 @@
 *~
 *_dep
 *.o
+*.rl_
 gplTemplate
 Howto.cook,*
 howto.cook,*
 Howto.list
 howto.list
+WritingAnInterpreter.html
 bin/*
+lib/*

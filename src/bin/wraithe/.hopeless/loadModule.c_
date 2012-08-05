@@ -1,0 +1,26 @@
+/*************************************************************************
+ * wraithe/src/bin/wraithe/loadModule.c
+ *
+ * Copyright (c) 2012 Michael D Henderson, all rights reserved
+ *
+ * This file is part of wraithe
+ *************************************************************************/
+#include "local.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+static char chunk[2048];
+
+int LoadModule(lua_State *L, char *module) {
+	static const char *path = 0;
+	if (!path) {
+		path = ForcePathSlash(FixPath(getenv("WRAITHE_MPATH")));
+	}
+
+	snprintf(chunk, 2048, "%s=require'%s%s';", module, path, module);
+	chunk[2047] = 0;
+
+	return RunString(L, chunk);
+}
+
