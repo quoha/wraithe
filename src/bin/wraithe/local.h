@@ -25,21 +25,6 @@
 #include <stdio.h>
 #include <sqlite3.h>
 
-// must be defined in the order that we
-// expect to find the tokens in the input
-//
-#define tkText     0x00
-#define tkH1       0x01
-#define tkH2       0x02
-#define tkH3       0x03
-#define tkH4       0x04
-#define tkH5       0x05
-#define tkH6       0x06
-#define tkStart    0x07
-#define tkCode     0x08
-#define tkEnd      0x09
-#define tkNode     0x10
-
 #define MAXH1      1024
 #define MAXH2      1024
 
@@ -81,21 +66,8 @@ struct H2 {
 	const char *text;
 };
 
-typedef struct Token Token;
-struct Token {
-	Token *prev;
-	Token *node;
-	Token *next;
-	int    kind;
-	int    id;
-	char  *data;
-};
-
 BODY       *BODYNew(const char *tag, const char *text, const char *close);
 const char *CRC(const char *text);
-const char *FixPath(const char *path);
-const char *ForcePathSlash(const char *path);
-const char *HomeDir(void);
 H1         *H1New(const char *data, const char *endOfData);
 H2         *H2New(const char *data, const char *endOfData);
 HEAD       *HEADNew(const char *data, const char *endOfData);
@@ -103,19 +75,12 @@ void        HTMLDump(HTML *html, FILE *fp);
 HTML       *HTMLNew(void);
 HTML       *HTMLTree(char *buffer);
 char       *InputBuffer(const char *fileName);
-int         LoadConfigFile(const char *configFile);
-int         MakePath(char *path);
 const char *MatchPattern(const char *pattern, const char *src);
 int         OptIs(const char *cmdLineParameter, const char *option);
 int         SetOpt(char *s, char **opt, char **val);
 char       *StrNDup(const char *src, int len);
-void        TokenDump(Token *root);
-Token      *TokenList(char *buffer, const char *separator);
-Token      *TokenNew(int kind, char *data);
-Token      *TokenSeparator(Token *root, const char *separator);
 char       *TranslatePHP(char *buffer);
 char       *TranslateSmartQuotes(char *buffer);
-int         WriteArticle(const char *path, const char *preLib, const char *preText, H1 *h1, const char *postLib);
 int         PostArticle(sqlite3 *db, const char *type, H1 *h1);
 
 #endif
