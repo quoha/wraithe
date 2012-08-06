@@ -24,6 +24,92 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
+
+/*************************************************************************
+ */
+static const char *FileName(sqlite3 *db, int typeID, const char *title) {
+	static char buffer[1024];
+
+	if (strlen(title) + 8 > 1023) {
+		printf("\nerror:\tmaximum path length exceeded\n");
+		printf("\t%-18s == '%s'\n", "title", title);
+		exit(2);
+	}
+
+	char       *p    = buffer;
+	const char *path = 0;
+	const char *sql  =
+		"\tselect output_path\n"
+		"\t  from page_types\n"
+		"\t where id = ?\n";
+
+	sqlite3_stmt *pStmt = 0;
+	const char   *pTail = 0;
+	if (sqlite3_prepare_v2(db, sql, strlen(sql) + 1, &pStmt, &pTail) != SQLITE_OK) {
+		printf("  sql:%s\n", sql);
+		printf("\nerror:\t%s\n", sqlite3_errmsg(db));
+		printf("\nerror:\tcould not compile SQL to fetch page output path\n");
+		exit(2);
+	}
+
+	int colNo = 0;
+	if (sqlite3_bind_int(pStmt, ++colNo, typeID) != SQLITE_OK) {
+		printf("  sql:%s\n", sql);
+		printf("\nerror:\t%s\n", sqlite3_errmsg(db));
+		printf("\nerror:\tcould not bind id\n");
+		printf("\t%-18s == %d\n", "id", typeID);
+		exit(2);
+	}
+
+	int rc;
+	do {
+		rc = sqlite3_step(pStmt);
+		switch (rc) {
+		case SQLITE_DONE:
+			break;
+		case SQLITE_ROW:
+			path = (const char *)sqlite3_column_text(pStmt, 0);
+			if (path) {
+				if (strlen(path) + strlen(title) + 8 > 1023) {
+					printf("\nerror:\tmaximum path length exceeded\n");
+					printf("\t%-18s == '%s'\n", "path", path);
+					printf("\t%-18s == '%s'\n", "title", title);
+					exit(2);
+				}
+
+				while (*path) {
+					*(p++) = *(path++);
+				}
+			}
+			break;
+		default:
+			printf("  sql:%s\n", sql);
+			printf("\nerror:\t%s\n", sqlite3_errmsg(db));
+			exit(2);
+		}
+	} while (rc == SQLITE_ROW);
+
+	sqlite3_finalize(pStmt);
+
+	while (*title) {
+		if (isalnum(*title)) {
+			*(p++) = tolower(*(title++));
+		} else {
+			*(p++) = '-';
+			title++;
+		}
+	}
+
+	*(p++) = '.';
+	*(p++) = 'h';
+	*(p++) = 't';
+	*(p++) = 'm';
+	*(p++) = 'l';
+	*(p++) = 0;
+
+	return buffer;
+}
 
 /*************************************************************************
  */
@@ -185,11 +271,14 @@ static int FetchType(sqlite3 *db, const char *type) {
 static int InsertArticle(sqlite3 *db, int typeID, H1 *h1, const char *crc) {
 	printf(" info:\tinserting '%s'\n", h1->title);
 
+	const char *fileName = FileName(db, typeID, h1->title);
+
 	const char *sql =
 		"\tinsert into articles (\n"
 		"\t  page_type_id\n"
 		"\t, create_dttm\n"
 		"\t, update_dttm\n"
+		"\t, write_dttm\n"
 		"\t, hit_counter\n"
 		"\t, file_name\n"
 		"\t, title\n"
@@ -200,8 +289,9 @@ static int InsertArticle(sqlite3 *db, int typeID, H1 *h1, const char *crc) {
 		"\t  ?          -- page_type_id\n"
 		"\t, datetime() -- create_dttm\n"
 		"\t, datetime() -- update_dttm\n"
+		"\t, null       -- write_dttm\n"
 		"\t, 0          -- hit_counter\n"
-		"\t, null       -- file_name\n"
+		"\t, ?          -- file_name\n"
 		"\t, ?          -- title\n"
 		"\t, null       -- keywords\n"
 		"\t, ?          -- text_crc\n"
@@ -223,6 +313,12 @@ static int InsertArticle(sqlite3 *db, int typeID, H1 *h1, const char *crc) {
 		printf("\nerror:\t%s\n", sqlite3_errmsg(db));
 		printf("\nerror:\tcould not bind page_type_id\n");
 		printf("\t%-18s == %d\n", "page_type_id", typeID);
+		exit(2);
+	} else if (sqlite3_bind_text(pStmt, ++colNo, fileName, strlen(fileName), 0) != SQLITE_OK) {
+		printf("  sql:%s\n", sql);
+		printf("\nerror:\t%s\n", sqlite3_errmsg(db));
+		printf("\nerror:\tcould not bind file_name\n");
+		printf("\t%-18s == '%s'\n", "file_name", fileName);
 		exit(2);
 	} else if (sqlite3_bind_text(pStmt, ++colNo, h1->title, strlen(h1->title), 0) != SQLITE_OK) {
 		printf("  sql:%s\n", sql);
@@ -290,6 +386,7 @@ static int UpdateArticle(sqlite3 *db, int id, H1 *h1, const char *crc) {
 		"\t   set update_dttm = datetime()\n"
 		"\t     , text_crc    = ?\n"
 		"\t     , text        = ?||?||?||?\n"
+		"\t     , write_dttm  = null\n"
 		"\t where id          = ?\n";
 
 	sqlite3_stmt *pStmt = 0;

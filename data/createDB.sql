@@ -2,7 +2,7 @@ create table controller (
 		last_write_dttm
 );
 
-insert into controller values ('2012/01/01 00:00:00');
+insert into controller values ('2012-01-01 00:00:00');
 
 create table page_types (
 		id INTEGER PRIMARY KEY AUTOINCREMENT
@@ -19,6 +19,7 @@ create table articles (
 	,	page_type_id
 	,	create_dttm
 	,	update_dttm
+	,	write_dttm
 	,	hit_counter
 	,	file_name
 	,	title
