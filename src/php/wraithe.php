@@ -246,8 +246,10 @@ foreach ($wrv->OutOfDateArticles() as $row) {
 	$wrc   = new WraitheController($wrv->RootPath(), $wrv->TemplateFile(), $wrv->OutputFile());
 
 	$text = $wrc->Render($row['id'], $model);
-
-	print "-----------------\n{$text}\n========================\n";
+	
+	$handle = fopen($wrv->OutputFile(), 'w') or die("error:\tcan not create {$wrv->OutputFile()}");
+	fwrite($handle, $text);
+	fclose($handle);
 
 	$wrv->UpdateArticleWriteDttm($id);
 
