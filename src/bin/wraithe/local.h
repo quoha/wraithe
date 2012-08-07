@@ -67,7 +67,7 @@ struct H2 {
 };
 
 BODY       *BODYNew(const char *tag, const char *text, const char *close);
-const char *CRC(const char *text);
+const char *CRC(const unsigned char *src, int srcLen, char *crc, int crcLen);
 H1         *H1New(const char *data, const char *endOfData);
 H2         *H2New(const char *data, const char *endOfData);
 HEAD       *HEADNew(const char *data, const char *endOfData);

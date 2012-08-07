@@ -469,8 +469,10 @@ int PostArticle(sqlite3 *db, const char *type, H1 *h1) {
 		return 0;
 	}
 
-	const char *crc = CRC(h1->text);
-	int         id  = FetchID(db, idType, h1->title);
+	char crc[129];
+	CRC((const unsigned char *)h1->text, strlen(h1->text), crc, 129);
+
+	int id  = FetchID(db, idType, h1->title);
 
 	if (id == -1) {
 		printf(" post:\tinsert     %s/%s\n", type, h1->title);
