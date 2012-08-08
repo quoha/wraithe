@@ -1,6 +1,6 @@
 <?php
 //************************************************************************
-// wraithe/src/php/wraithe.php
+// wraithe/src/php/makePost.php
 //
 // Copyright (c) 2012 Michael D Henderson, all rights reserved
 //
