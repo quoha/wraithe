@@ -34,8 +34,13 @@ int main(int argc, char *argv[]) {
 		char *opt, *val;
 		SetOpt(argv[idx], &opt, &val);
 		if (OptIs(opt, "help")) {
+			printf("\nusage:\twraithe --wraithe-db=xxx --input-file=xxx\n");
+			printf("\tconvert input html to a sqlite3 database\n");
+			printf("\t--help           print this text\n");
+			printf("\t--version        show version information\n");
 			return 2;
 		} else if (OptIs(opt, "version")) {
+			printf(" info:\twraithe " PKG_VER " compiled on " __DATE__ " at " __TIME__"\n\n");
 			return 2;
 		} else if (OptIs(opt, "input-file") && val && *val) {
 			inputFile = val;
