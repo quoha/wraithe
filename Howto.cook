@@ -30,8 +30,8 @@ cktProject  = wraithe;
 cktName     = wraithe - scrivener blogging;
 cktAuthor   = Michael D Henderson;
 cktVerMajor = 02;
-cktVerMinor = 003;
-cktVerPatch = 0004;
+cktVerMinor = 004;
+cktVerPatch = 0000;
 cktInclude  = ;
 cktLibrary  = ;
 
@@ -52,6 +52,7 @@ ccLdFlags = ;
 /*===========================================================================
  * project variables
  */
+bin/incfile_ldFlags = -lsqlite3;
 bin/wraithe_ldFlags = -lsqlite3;
 bin/wraithe-02.001.0000_ldFlags = -lsqlite3;
 
@@ -76,6 +77,8 @@ test: [cktAllPackages] {
   [testsh] --pass bin/wraithe
     --input-file\=data/WritingAnInterpreter.html
     --wraithe-db\=data/wraithe.mdb;
+
+  [testsh] --pass bin/incfile --wraithe-db\=data/wraithe.mdb;
 
   function print info -- passed all tests;
 }

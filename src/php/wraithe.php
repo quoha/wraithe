@@ -255,6 +255,9 @@ class WraitheModel {
 	public function Keywords() {
 		return $this->article->Keywords();
 	}
+	public function HighlightFile($file) {
+		return highlight_file($file, true);
+	}
 	public function PopularArticles() {
 		return $this->view->GetPopularArticles();
 	}
